@@ -44,6 +44,8 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println(r.URL.Path[1:])
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -53,10 +55,13 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	xmlFile := "toy/" + vars["xmlFile"]
 
 	now := time.Now()
-	for {
-		fmt.Fprintf(w, "%s elapsed since job started", time.Since(now))
-		f.Flush()
-	}
+	go func() {
+		for {
+			fmt.Fprintf(w, "%s elapsed since job started\n", time.Since(now))
+			f.Flush()
+			time.Sleep(time.Second * 1)
+		}
+	}()
 
 	cmd := exec.Command("./createBuild.sh", osBuildMapping[os], os, xmlFile)
 	cmdOutput := &bytes.Buffer{}
@@ -85,7 +90,9 @@ func main() {
 }
 
 func printError(err error) {
-	log.Println(err)
+	if err != nil {
+		log.Println("Error received:", err)
+	}
 }
 
 func printOutput(output []byte) {

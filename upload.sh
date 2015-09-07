@@ -2,7 +2,8 @@
 
 cd $HOME/rpmbuild/RPMS/x86_64/
 
-for i in $(ls .)
+for file in $(ls .)
 do
-    curl --upload-file $i http://s3.amazonaws.com/customers.couchbase.com/couchbase/
+    echo "Uploading to S3:" $file
+    curl --upload-file $file http://s3.amazonaws.com/customers.couchbase.com/couchbase/
 done

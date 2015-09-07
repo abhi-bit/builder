@@ -13,7 +13,7 @@ createbuild()
     ssh -p $port couchbase@localhost "cd builder; repo sync --jobs=20"
     ssh -p $port couchbase@localhost "cd builder; cbbuild/scripts/jenkins/couchbase_server/server-linux-build.sh $OS 1010.0.0 enterprise 1"
     ssh -p $port couchbase@localhost "bash /home/couchbase/upload.sh"
-    ssh -p $port couchbase@localhost "cd /home/couchbase/; rm -rf builder"
+    ssh -p $port couchbase@localhost "cd /home/couchbase/; rm -rf builder; rm -rf rpmbuild"
 }
 
 createbuild

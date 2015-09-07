@@ -55,13 +55,6 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	xmlFile := "toy/" + vars["xmlFile"]
 
 	now := time.Now()
-	go func() {
-		for {
-			fmt.Fprintf(w, "%s elapsed since job started\n", time.Since(now))
-			f.Flush()
-			time.Sleep(time.Second * 1)
-		}
-	}()
 
 	cmd := exec.Command("./createBuild.sh", osBuildMapping[os], os, xmlFile)
 	cmdOutput := &bytes.Buffer{}
@@ -70,6 +63,11 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	err := cmd.Start()
 	printError(err)
 
+	for {
+		fmt.Fprintf(w, "%s elapsed since job started\n", time.Since(now))
+		f.Flush()
+		time.Sleep(time.Second * 1)
+	}
 	cmd.Wait()
 	printOutput(
 		[]byte(fmt.Sprintf("%s", cmdOutput.Bytes())),

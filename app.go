@@ -1,11 +1,13 @@
 package main
 
 import (
+    "bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os/exec"
+    "time"
 
 	"github.com/gorilla/mux"
 )
@@ -42,7 +44,30 @@ func getOSList(w http.ResponseWriter, r *http.Request) {
 func createBuild(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	os := vars["OS"]
-	xmlFile := vars["xmlFile"]
+	xmlFile := "toy/" + vars["xmlFile"]
+
+    cmd := exec.Command("./createBuild.sh",
+        osBuildMapping[os], os, xmlFile)
+    cmdOutput := &bytes.Buffer{}
+    cmd.Stdout = cmdOutput
+
+    err := cmd.Start()
+    printError(err)
+
+    ticker := time.NewTicker(time.Second)
+    go func(ticker *time.Ticker) {
+        now := time.Now()
+        for _ = range ticker.C {
+        printOutput(
+            []byte(fmt.Sprintf("%s", time.Since(now))),
+            )
+        }
+    }(ticker)
+
+    cmd.Wait()
+    printOutput(
+        []byte(fmt.Sprintf("%s", cmdOutput.Bytes())),
+    )
 
 	out, err := exec.Command("./createBuild.sh",
 		osBuildMapping[os], os, xmlFile).Output()
@@ -64,7 +89,15 @@ func main() {
 
 	router.HandleFunc("/", handler)
 	router.HandleFunc("/OS", getOSList)
-	router.HandleFunc("/build/{OS}/{xmlFile}", createBuild)
+	router.HandleFunc("/build/{OS}/toy/{xmlFile}", createBuild)
 	fmt.Println("Starting web service on 10000")
 	http.ListenAndServe(":10000", router)
+}
+
+func printError(err error) {
+    log.Println(err)
+}
+
+func printOutput(output []byte) {
+    log.Println(output)
 }

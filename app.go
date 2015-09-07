@@ -14,7 +14,7 @@ import (
 
 var osBuildMapping = make(map[string]string)
 
-func osPortMapping() {
+func init() {
 	osBuildMapping["centos6"] = "2222"
 	osBuildMapping["centos7"] = "2223"
 	osBuildMapping["ubuntu12"] = "2224"
@@ -23,7 +23,7 @@ func osPortMapping() {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to builder")
+	fmt.Fprintf(w, "Welcome to builder\n")
 }
 
 func getOSList(w http.ResponseWriter, r *http.Request) {
@@ -31,60 +31,50 @@ func getOSList(w http.ResponseWriter, r *http.Request) {
 	for OS := range osBuildMapping {
 		OSList = append(OSList, OS)
 	}
-
-	js, err := json.Marshal(OSList)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	if err := json.NewEncoder(w).Encode(OSList); err != nil {
+		panic(err)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
 }
 
 func createBuild(w http.ResponseWriter, r *http.Request) {
+	f, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
 	vars := mux.Vars(r)
 	os := vars["OS"]
 	xmlFile := "toy/" + vars["xmlFile"]
 
-	cmd := exec.Command("./createBuild.sh",
-		osBuildMapping[os], os, xmlFile)
+	now := time.Now()
+	for {
+		fmt.Fprintf(w, "%s elapsed since job started", time.Since(now))
+		f.Flush()
+	}
+
+	cmd := exec.Command("./createBuild.sh", osBuildMapping[os], os, xmlFile)
 	cmdOutput := &bytes.Buffer{}
 	cmd.Stdout = cmdOutput
 
 	err := cmd.Start()
 	printError(err)
 
-	ticker := time.NewTicker(time.Second)
-	go func(ticker *time.Ticker) {
-		now := time.Now()
-		for _ = range ticker.C {
-			printOutput(
-				[]byte(fmt.Sprintf("%s", time.Since(now))),
-			)
-		}
-	}(ticker)
-
 	cmd.Wait()
 	printOutput(
 		[]byte(fmt.Sprintf("%s", cmdOutput.Bytes())),
 	)
-
-	out, err := exec.Command("./createBuild.sh",
-		osBuildMapping[os], os, xmlFile).Output()
-	if err != nil {
-		log.Println(err)
-	} else {
-		log.Println("output:", string(out))
-	}
 	log.Printf("Successfully created build for os: %s xml: %s", os, xmlFile)
 
 	fmt.Fprintf(w, "Started build for OS: %v xmlFile: %v", os, xmlFile)
 }
 
 func main() {
-	//Construct OS names to docker build mapping
-	osPortMapping()
-
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.HandleFunc("/", handler)

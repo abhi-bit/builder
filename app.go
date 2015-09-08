@@ -38,7 +38,7 @@ func getOSList(w http.ResponseWriter, r *http.Request) {
 }
 
 func createBuild(w http.ResponseWriter, r *http.Request) {
-	f, ok := w.(http.Flusher)
+	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
@@ -46,35 +46,47 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 
 	log.Println(r.URL.Path[1:])
 
-	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
 	vars := mux.Vars(r)
 	os := vars["OS"]
 	xmlFile := "toy/" + vars["xmlFile"]
+	done := make(chan bool, 1)
 
 	now := time.Now()
 
 	cmd := exec.Command("./createBuild.sh", osBuildMapping[os], os, xmlFile)
+
 	cmdOutput := &bytes.Buffer{}
 	cmd.Stdout = cmdOutput
 
 	err := cmd.Start()
 	printError(err)
 
-	for {
-		fmt.Fprintf(w, "%s elapsed since job started\n", time.Since(now))
-		f.Flush()
-		time.Sleep(time.Second * 1)
-	}
-	cmd.Wait()
-	printOutput(
-		[]byte(fmt.Sprintf("%s", cmdOutput.Bytes())),
-	)
-	log.Printf("Successfully created build for os: %s xml: %s", os, xmlFile)
+	fmt.Fprintf(w, "Started build for OS: %v xmlFile: %v\n", os, xmlFile)
 
-	fmt.Fprintf(w, "Started build for OS: %v xmlFile: %v", os, xmlFile)
+	go func() {
+		for {
+			select {
+			case <-done:
+				fmt.Fprintf(w, "Done\n")
+				fmt.Fprintf(w, "Time elapsed: %s\n", time.Since(now))
+				flusher.Flush()
+				close(done)
+				return
+			default:
+				fmt.Fprintf(w, ".")
+				flusher.Flush()
+			}
+			time.Sleep(time.Second * 1)
+		}
+	}()
+	cmd.Wait()
+	done <- true
+
+	// Sleep to allow dump timing stats
+	time.Sleep(2 * time.Second)
 }
 
 func main() {
@@ -91,8 +103,4 @@ func printError(err error) {
 	if err != nil {
 		log.Println("Error received:", err)
 	}
-}
-
-func printOutput(output []byte) {
-	log.Println(string(output))
 }

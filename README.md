@@ -16,7 +16,7 @@
   API call would look like:
 
 ```
-> curl http://docker:8080/build/centos6/toy/abhi.xml
+> curl http://docker:8080/build/centos6/toy/toy-abhi.xml
 .........................Done
 Time elapsed: 16m24s
 ````

@@ -7,12 +7,15 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+    "sync"
 	"time"
 
 	"github.com/gorilla/mux"
 )
 
 var osBuildMapping = make(map[string]string)
+var buildId int64 = 10
+var mutex = &sync.Mutex{}
 
 func init() {
 	osBuildMapping["centos6"] = "2222"
@@ -38,13 +41,17 @@ func getOSList(w http.ResponseWriter, r *http.Request) {
 }
 
 func createBuild(w http.ResponseWriter, r *http.Request) {
+    mutex.Lock()
+    buildId = buildId + 1
+    mutex.Unlock()
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println(r.URL.Path[1:])
+	log.Println("Build id: ", buildId, r.URL.Path[1:])
 
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -56,7 +63,7 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 
-	cmd := exec.Command("./createBuild.sh", osBuildMapping[os], os, xmlFile)
+	cmd := exec.Command("./createBuild.sh", osBuildMapping[os], os, xmlFile, buildId)
 
 	cmdOutput := &bytes.Buffer{}
 	cmd.Stdout = cmdOutput
@@ -64,7 +71,7 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	err := cmd.Start()
 	printError(err)
 
-	fmt.Fprintf(w, "Started build for OS: %v xmlFile: %v\n", os, xmlFile)
+	fmt.Fprintf(w, "Started build for OS: %v xmlFile: %v, buildId: %d\n", os, xmlFile, buildId)
 
 	go func() {
 		for {
@@ -85,8 +92,24 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	cmd.Wait()
 	done <- true
 
-	// Sleep to allow dump timing stats
+	// Sleep to allow dump of timing stats
 	time.Sleep(2 * time.Second)
+
+    ext := ""
+    if os == "centos6" || os == "centos7" {
+        ext = "rpm"
+    } else {
+        ext = "deb"
+    }
+
+    // S3 download links:
+    cbServer := `http://customers.couchbase.com.s3.amazonaws.com/couchbase/
+            couchbase-server-toy10` + buildId + `.0.0-1.x86_64.` + ext
+    cbDebugServer := `http://customers.couchbase.com.s3.amazonaws.com/
+            couchbase/couchbase-server-debug-10` + buildId + `.0.0-1.x86_64.` + ext
+    fmt.Fprintf(w, "S3 download links:")
+    fmt.Fprintf(w, "%s\n", cbServer)
+    fmt.Printf(w, "%s\n", cbDebugServer)
 }
 
 func main() {

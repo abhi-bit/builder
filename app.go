@@ -7,15 +7,17 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
-    "sync"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
 )
 
 var osBuildMapping = make(map[string]string)
-var buildId int64 = 10
+var buildId int = 20
 var mutex = &sync.Mutex{}
+var ongoingJobs = make(chan int, 1)
 
 func init() {
 	osBuildMapping["centos6"] = "2222"
@@ -41,9 +43,6 @@ func getOSList(w http.ResponseWriter, r *http.Request) {
 }
 
 func createBuild(w http.ResponseWriter, r *http.Request) {
-    mutex.Lock()
-    buildId = buildId + 1
-    mutex.Unlock()
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -51,11 +50,20 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("Build id: ", buildId, r.URL.Path[1:])
+	if len(ongoingJobs) > 0 {
+		fmt.Fprintf(w, "Build id: %d already running, please wait for 15 mins and retry\n", buildId)
+		return
+	} else {
+		mutex.Lock()
+		buildId = buildId + 1
+		mutex.Unlock()
+	}
 
+	log.Println("Build id: ", buildId, r.URL.Path[1:])
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	ongoingJobs <- 1
 	vars := mux.Vars(r)
 	os := vars["OS"]
 	xmlFile := "toy/" + vars["xmlFile"]
@@ -63,7 +71,8 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 
-	cmd := exec.Command("./createBuild.sh", osBuildMapping[os], os, xmlFile, buildId)
+	cmd := exec.Command("./createBuild.sh", osBuildMapping[os],
+		os, xmlFile, strconv.Itoa(buildId))
 
 	cmdOutput := &bytes.Buffer{}
 	cmd.Stdout = cmdOutput
@@ -91,25 +100,24 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	}()
 	cmd.Wait()
 	done <- true
+	<-ongoingJobs
 
 	// Sleep to allow dump of timing stats
 	time.Sleep(2 * time.Second)
 
-    ext := ""
-    if os == "centos6" || os == "centos7" {
-        ext = "rpm"
-    } else {
-        ext = "deb"
-    }
+	ext := ""
+	if os == "centos6" || os == "centos7" {
+		ext = "rpm"
+	} else {
+		ext = "deb"
+	}
 
-    // S3 download links:
-    cbServer := `http://customers.couchbase.com.s3.amazonaws.com/couchbase/
-            couchbase-server-toy10` + buildId + `.0.0-1.x86_64.` + ext
-    cbDebugServer := `http://customers.couchbase.com.s3.amazonaws.com/
-            couchbase/couchbase-server-debug-10` + buildId + `.0.0-1.x86_64.` + ext
-    fmt.Fprintf(w, "S3 download links:")
-    fmt.Fprintf(w, "%s\n", cbServer)
-    fmt.Printf(w, "%s\n", cbDebugServer)
+	// S3 download links:
+	cbServer := `http://customers.couchbase.com.s3.amazonaws.com/couchbase/couchbase-server-1.7~toy-10` + strconv.Itoa(buildId) + `.0.0.0.x86_64.` + ext
+	cbDebugServer := `http://customers.couchbase.com.s3.amazonaws.com/couchbase/couchbase-server-debug-1.7~toy-10` + strconv.Itoa(buildId) + `.0.0.0.x86_64.` + ext
+	fmt.Fprintf(w, "S3 download links:")
+	fmt.Fprintf(w, "%s\n", cbServer)
+	fmt.Fprintf(w, "%s\n", cbDebugServer)
 }
 
 func main() {

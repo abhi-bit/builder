@@ -105,11 +105,13 @@ func runJobs() {
 
 		cmdOutput := &bytes.Buffer{}
 		cmd.Stdout = cmdOutput
+		cmd.Stderr = cmdOutput
 
 		if err := cmd.Start(); err != nil {
 			log.Printf("cmd.Start(): %v\n", err)
 		}
 		cmd.Wait()
+		log.Printf("%v\n", string(cmdOutput.Bytes()))
 
 		// Sleep to allow dump of timing stats
 		time.Sleep(2 * time.Second)

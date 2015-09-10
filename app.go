@@ -85,8 +85,11 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	params := r.URL.Query()
 	os := vars["OS"]
-	repo := params["repo"][0]
-	xmlFile := vars["xmlFile"]
+	repo := "git://github.com/couchbase/manifest"
+	if repos, ok := params["repo"]; ok && len(repos) > 0 {
+		repo = repos[0]
+	}
+	xmlFile := params["xmlfile"][0]
 	job := newJob(buildId, os, repo, xmlFile)
 
 	now, done := time.Now(), make(chan bool)
@@ -147,7 +150,7 @@ func main() {
 	router.HandleFunc("/uptime", upTime)
 	router.HandleFunc("/config", getConfiguration)
 	router.HandleFunc("/listjobs", listJobs)
-	router.HandleFunc("/build/{OS}/{xmlFile}", createBuild)
+	router.HandleFunc("/build/{OS}", createBuild)
 	fmt.Println("Starting web service on 8080")
 	http.ListenAndServe(":8080", router)
 }

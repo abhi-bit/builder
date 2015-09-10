@@ -1,12 +1,11 @@
 package main
 
-//import "bytes"
+import "bytes"
 import "encoding/json"
 import "fmt"
 import "io"
 import "log"
-
-//import "os/exec"
+import "os/exec"
 import "strconv"
 import "time"
 import "sync"
@@ -99,21 +98,21 @@ func runJobs() {
 		log.Printf("runjob: %v\n", job.String())
 		setCurrentJob(&job)
 		buildId, os := job.BuildId, job.Os
-		//repo, xmlFile := job.Repo, job.BuildXML
-		//cmd := exec.Command(
-		//	"./createBuild.sh", osBuildMapping[os],
-		//	os, repo, xmlFile, strconv.Itoa(buildId))
+		repo, xmlFile := job.Repo, job.BuildXML
+		cmd := exec.Command(
+			"./createBuild.sh", osBuildMapping[os],
+			os, repo, xmlFile, strconv.Itoa(buildId))
 
-		//cmdOutput := &bytes.Buffer{}
-		//cmd.Stdout = cmdOutput
+		cmdOutput := &bytes.Buffer{}
+		cmd.Stdout = cmdOutput
 
-		//if err := cmd.Start(); err != nil {
-		//	log.Printf("cmd.Start(): %v\n", err)
-		//}
-		//cmd.Wait()
+		if err := cmd.Start(); err != nil {
+			log.Printf("cmd.Start(): %v\n", err)
+		}
+		cmd.Wait()
 
 		// Sleep to allow dump of timing stats
-		time.Sleep(20 * time.Second)
+		time.Sleep(2 * time.Second)
 
 		ext := "dep"
 		if os == "centos6" || os == "centos7" {

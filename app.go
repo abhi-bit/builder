@@ -92,10 +92,8 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	xmlFile := params["xmlfile"][0]
 	job := newJob(buildId, os, repo, xmlFile)
 
-	var wg sync.WaitGroup
 	now, done := time.Now(), make(chan bool)
 	seconds := 0
-	wg.Add(1)
 	go func() {
 		for {
 			time.Sleep(time.Second * 1)
@@ -106,7 +104,7 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "Time elapsed: %s\n", time.Since(now))
 				flusher.Flush()
 				close(done)
-				break
+				return
 			default:
 				fmt.Fprintf(w, ".")
 				if (seconds % 60) == 0 {
@@ -115,11 +113,9 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 				flusher.Flush()
 			}
 		}
-		wg.Done()
 	}()
 	job = job.run(w)
 	done <- true
-	wg.Wait()
 
 	fmt.Fprintf(w, "S3 download links:\n")
 	fmt.Fprintf(w, "  %s\n", job.cbServer)

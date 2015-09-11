@@ -12,13 +12,18 @@
 [“centos6”,”centos7”,”ubuntu12”,”ubuntu14”,”debian7”]
 ```
 
-* To generate toy-build for centos6 using `toy/toy-abhi.xml`, 
+* To generate toy-build for centos6 using `toy/toy-abhi.xml`,
   API call would look like:
 
 ```
-> curl http://docker:8080/build/centos6/toy/toy-abhi.xml
-.........................Done
-Time elapsed: 16m24s
+> curl http://docker:8080/build/centos6\?xmlfile\=toy/xy.xml
+````
+
+* To generate toy-build from a specific manifest repostiory,
+  API call would look like:
+
+```
+> curl http://docker:8080/build/centos6\?xmlfile\=toy/xy.xml\&repo\=git://github.com/myname/manifest
 ````
 
 * Typically it takes around 15 mins to generate toy-build for one platform

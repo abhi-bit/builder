@@ -1,33 +1,35 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
-	"os/exec"
-	"strconv"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
 )
 
-var osBuildMapping = make(map[string]string)
-var buildId int = 20
+var osBuildMapping = map[string]string{
+	"centos6":  "2222",
+	"centos7":  "2223",
+	"ubuntu12": "2224",
+	"ubuntu14": "2225",
+	"debian7":  "2226",
+}
 var mutex = &sync.Mutex{}
-var ongoingJobs = make(chan int, 1)
+var startTime = time.Now()
 
-func init() {
-	osBuildMapping["centos6"] = "2222"
-	osBuildMapping["centos7"] = "2223"
-	osBuildMapping["ubuntu12"] = "2224"
-	osBuildMapping["ubuntu14"] = "2225"
-	osBuildMapping["debian7"] = "2226"
+var options struct {
+	basedir string
+	logfile string
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func welcomeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome to builder\n")
 }
 
@@ -42,96 +44,113 @@ func getOSList(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func createBuild(w http.ResponseWriter, r *http.Request) {
+func upTime(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text;charset=UTF-8")
+	fmt.Fprintf(w, "ticking for: %v\n", time.Since(startTime))
+}
 
+func getConfiguration(w http.ResponseWriter, r *http.Request) {
+	data, err := marshalConfig()
+	if err != nil {
+		panic(err)
+	}
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	fmt.Fprintf(w, "%s\n", string(data))
+}
+
+func listJobs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text;charset=UTF-8")
+	currjob := getCurrentJob()
+	for _, job := range pendingJobs() {
+		if job.BuildId == currjob.BuildId {
+			fmt.Fprintf(w, "EXEC: %v\n", job.String())
+		} else {
+			fmt.Fprintf(w, "PEND: %v\n", job.String())
+		}
+	}
+}
+
+func createBuild(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
-	if len(ongoingJobs) > 0 {
-		fmt.Fprintf(w, "Build id: %d already running, please wait for 15 mins and retry\n", buildId)
-		return
-	} else {
-		mutex.Lock()
-		buildId = buildId + 1
-		mutex.Unlock()
-	}
-
-	log.Println("Build id: ", buildId, r.URL.Path[1:])
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ongoingJobs <- 1
+	buildId := getConfig("build_id").(int) + 1
+	setConfig("build_id", buildId)
 	vars := mux.Vars(r)
+	params := r.URL.Query()
 	os := vars["OS"]
-	xmlFile := "toy/" + vars["xmlFile"]
-	done := make(chan bool, 1)
+	repo := "git://github.com/couchbase/manifest"
+	if repos, ok := params["repo"]; ok && len(repos) > 0 {
+		repo = repos[0]
+	}
+	xmlFile := params["xmlfile"][0]
+	job := newJob(buildId, os, repo, xmlFile)
 
-	now := time.Now()
-
-	cmd := exec.Command("./createBuild.sh", osBuildMapping[os],
-		os, xmlFile, strconv.Itoa(buildId))
-
-	cmdOutput := &bytes.Buffer{}
-	cmd.Stdout = cmdOutput
-
-	err := cmd.Start()
-	printError(err)
-
-	fmt.Fprintf(w, "Started build for OS: %v xmlFile: %v, buildId: %d\n", os, xmlFile, buildId)
-
+	now, done := time.Now(), make(chan bool)
+	seconds := 0
 	go func() {
 		for {
+			time.Sleep(time.Second * 1)
+			seconds++
 			select {
 			case <-done:
 				fmt.Fprintf(w, "Done\n")
 				fmt.Fprintf(w, "Time elapsed: %s\n", time.Since(now))
 				flusher.Flush()
-				close(done)
 				return
 			default:
 				fmt.Fprintf(w, ".")
+				if (seconds % 60) == 0 {
+					fmt.Fprintf(w, "\n")
+				}
 				flusher.Flush()
 			}
-			time.Sleep(time.Second * 1)
 		}
 	}()
-	cmd.Wait()
+	job = job.run(w)
 	done <- true
-	<-ongoingJobs
+	close(done)
 
-	// Sleep to allow dump of timing stats
-	time.Sleep(2 * time.Second)
+	fmt.Fprintf(w, "S3 download links:\n")
+	fmt.Fprintf(w, "  %s\n", job.cbServer)
+	fmt.Fprintf(w, "  %s\n", job.cbDebugServer)
+}
 
-	ext := ""
-	if os == "centos6" || os == "centos7" {
-		ext = "rpm"
-	} else {
-		ext = "deb"
+func argParse() {
+	flag.StringVar(&options.basedir, "dir", "/var/tmp",
+		"directory path to save builder files (configuration, log)")
+	flag.StringVar(&options.logfile, "log", "",
+		"directory path to save builder files (configuration, log)")
+	if options.logfile != "" {
+		logfile := filepath.Join(options.basedir, options.logfile)
+		w, err := os.OpenFile(logfile, os.O_WRONLY|os.O_APPEND, 0660)
+		if err != nil {
+			log.Fatalf("opening file %s: %v", logfile, err)
+		}
+		log.SetOutput(w)
 	}
-
-	// S3 download links:
-	cbServer := `http://customers.couchbase.com.s3.amazonaws.com/couchbase/couchbase-server-1.7~toy-10` + strconv.Itoa(buildId) + `.0.0.0.x86_64.` + ext
-	cbDebugServer := `http://customers.couchbase.com.s3.amazonaws.com/couchbase/couchbase-server-debug-1.7~toy-10` + strconv.Itoa(buildId) + `.0.0.0.x86_64.` + ext
-	fmt.Fprintf(w, "S3 download links:")
-	fmt.Fprintf(w, "%s\n", cbServer)
-	fmt.Fprintf(w, "%s\n", cbDebugServer)
+	flag.Parse()
 }
 
 func main() {
-	router := mux.NewRouter().StrictSlash(true)
+	argParse()
 
-	router.HandleFunc("/", handler)
+	loadConfig(filepath.Join(options.basedir, "builder.json"))
+	go runJobs()
+
+	router := mux.NewRouter().StrictSlash(true)
+	router.HandleFunc("/", welcomeHandler)
 	router.HandleFunc("/OS", getOSList)
-	router.HandleFunc("/build/{OS}/toy/{xmlFile}", createBuild)
+	router.HandleFunc("/uptime", upTime)
+	router.HandleFunc("/config", getConfiguration)
+	router.HandleFunc("/listjobs", listJobs)
+	router.HandleFunc("/build/{OS}", createBuild)
 	fmt.Println("Starting web service on 8080")
 	http.ListenAndServe(":8080", router)
-}
-
-func printError(err error) {
-	if err != nil {
-		log.Println("Error received:", err)
-	}
 }

@@ -30,7 +30,7 @@
   from *docker* machine. Once done it will upload the file to S3:
 
   ```
-  http://s3.amazonaws.com/customers.couchbase.com/couchbase/
+  http://s3.amazonaws.com/couchbase-latestbuilds/couchbase/
   ```
 
 Right now it’s running on *docker* machine in BLR office.

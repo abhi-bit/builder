@@ -1,15 +1,16 @@
 package main
 
-import "bytes"
-import "encoding/json"
-import "fmt"
-import "io"
-import "log"
-import "os/exec"
-import "strconv"
-import "time"
-import "sync"
-import "path/filepath"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"sync"
+)
 
 var jobs = make(map[int]Job)
 var currJob *Job
@@ -46,6 +47,7 @@ func (job Job) String() string {
 func (job Job) run(w io.Writer) Job {
 	job.respch = make(chan Job)
 	addJob(job)
+	fmt.Fprintf(w, "reqjob: %v\n", job.String())
 	reqch <- job
 	fmt.Fprintf(w, "runjob: %v\n", job.String())
 	return <-job.respch // wait until the job gets picked up.
@@ -111,23 +113,19 @@ func runJobs() {
 			log.Printf("cmd.Start(): %v\n", err)
 		}
 		cmd.Wait()
-		log.Printf("%v\n", string(cmdOutput.Bytes()))
 
-		// Sleep to allow dump of timing stats
-		time.Sleep(2 * time.Second)
-
-		ext := "dep"
+		ext := "deb"
 		if os == "centos6" || os == "centos7" {
 			ext = "rpm"
 		}
 
 		// S3 download links:
-		job.cbServer = `http://customers.couchbase.com.s3.amazonaws.com` +
+		job.cbServer = `http://couchbase-latestbuilds.s3.amazonaws.com` +
 			`/couchbase/couchbase-server-1.7~toy-10` +
-			strconv.Itoa(buildId) + `.0.0.0.x86_64.` + ext
-		job.cbDebugServer = `http://customers.couchbase.com.s3.amazonaws.com` +
+			strconv.Itoa(buildId) + `.0.0.x86_64.` + ext
+		job.cbDebugServer = `http://couchbase-latestbuilds.s3.amazonaws.com` +
 			`/couchbase/couchbase-server-debug-1.7~toy-10` +
-			strconv.Itoa(buildId) + `.0.0.0.x86_64.` + ext
+			strconv.Itoa(buildId) + `.0.0.x86_64.` + ext
 		job.respch <- job
 		delJob(job)
 		setCurrentJob(nil)

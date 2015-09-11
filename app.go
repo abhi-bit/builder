@@ -152,5 +152,7 @@ func main() {
 	router.HandleFunc("/listjobs", listJobs)
 	router.HandleFunc("/build/{OS}", createBuild)
 	fmt.Println("Starting web service on 8080")
-	http.ListenAndServe(":8080", router)
+	if err := http.ListenAndServe(":8080", router); err != nil {
+		log.Fatal(err)
+	}
 }

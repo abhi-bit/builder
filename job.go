@@ -120,10 +120,10 @@ func runJobs() {
 		}
 
 		// S3 download links:
-		job.cbServer = `http://couchbase-latestbuilds.s3.amazonaws.com` +
+		job.cbServer = `http://customers.couchbase.com.s3.amazonaws.com` +
 			`/couchbase/couchbase-server-1.7~toy-10` +
 			strconv.Itoa(buildId) + `.0.0.x86_64.` + ext
-		job.cbDebugServer = `http://couchbase-latestbuilds.s3.amazonaws.com` +
+		job.cbDebugServer = `http://customers.couchbase.com.s3.amazonaws.com` +
 			`/couchbase/couchbase-server-debug-1.7~toy-10` +
 			strconv.Itoa(buildId) + `.0.0.x86_64.` + ext
 		job.respch <- job

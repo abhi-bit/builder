@@ -117,6 +117,8 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	job = job.run(w)
 	done <- true
 
+	time.Sleep(time.Second * 2)
+
 	fmt.Fprintf(w, "S3 download links:\n")
 	fmt.Fprintf(w, "  %s\n", job.cbServer)
 	fmt.Fprintf(w, "  %s\n", job.cbDebugServer)

@@ -23,6 +23,7 @@ var osBuildMapping = map[string]string{
 }
 var mutex = &sync.Mutex{}
 var startTime = time.Now()
+var wg = &sync.WaitGroup{}
 
 var options struct {
 	basedir string
@@ -94,7 +95,9 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 
 	now, done := time.Now(), make(chan bool)
 	seconds := 0
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			time.Sleep(time.Second * 1)
 			seconds++
@@ -116,8 +119,7 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	}()
 	job = job.run(w)
 	done <- true
-
-	time.Sleep(time.Second * 2)
+	wg.Wait()
 
 	fmt.Fprintf(w, "S3 download links:\n")
 	fmt.Fprintf(w, "  %s\n", job.cbServer)

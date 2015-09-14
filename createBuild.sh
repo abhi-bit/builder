@@ -11,7 +11,6 @@ createbuild()
     DIR=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
     # list of commands to create build
     ssh -p $port couchbase@localhost "mkdir -p ~/$DIR/builder"
-    ssh -p $port couchbase@localhost "cd ~/$DIR/builder"
     ssh -p $port couchbase@localhost "cd ~/$DIR/builder; repo init -u $repo -g all -m $buildXML"
     ssh -p $port couchbase@localhost "cd ~/$DIR/builder; repo sync --jobs=20"
     ssh -p $port couchbase@localhost "cd ~/$DIR/builder; cbbuild/scripts/jenkins/couchbase_server/server-linux-build.sh $OS toy-10$buildID.0.0 enterprise 1"

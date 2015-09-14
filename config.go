@@ -12,7 +12,9 @@ type Config struct {
 	filename        string
 	BuildId         int `json:"build_id"`
 	TotalBuilds     int `json:"total_builds"`
+	TotalTests      int `json:"total_tests"`
 	CompletedBuilds int `json:"completed_builds"`
+	CompletedTests  int `json:"completed_tests"`
 }
 
 func loadConfig(configfile string) {
@@ -28,7 +30,9 @@ func loadConfig(configfile string) {
 	} else {
 		config.BuildId = 0
 		config.TotalBuilds = 0
+		config.TotalTests = 0
 		config.CompletedBuilds = 0
+		config.CompletedTests = 0
 	}
 	config.filename = configfile
 }
@@ -67,9 +71,15 @@ func setConfig(key string, value interface{}) interface{} {
 	case "total_builds":
 		old = config.TotalBuilds
 		config.TotalBuilds = value.(int)
+	case "total_tests":
+		old = config.TotalBuilds
+		config.TotalBuilds = value.(int)
 	case "completed_builds":
 		old = config.CompletedBuilds
 		config.CompletedBuilds = value.(int)
+	case "completed_tests":
+		old = config.CompletedTests
+		config.CompletedTests = value.(int)
 	}
 	return old
 }
@@ -84,8 +94,12 @@ func getConfig(key string) interface{} {
 		value = config.BuildId
 	case "total_builds":
 		value = config.TotalBuilds
+	case "total_tests":
+		value = config.TotalTests
 	case "completed_builds":
 		value = config.CompletedBuilds
+	case "completed_tests":
+		value = config.CompletedTests
 	}
 	return value
 }

@@ -9,12 +9,17 @@ iniFile=$5
 confFile=$6
 DIR=$7
 
+cores=$(cat /proc/cpuinfo | grep ^proc | wc -l)
+par=$(echo "$(echo "$cores * 0.75" | bc -l )/1" | bc)
+
 fireTests()
 {
     ssh -p $port couchbase@localhost "mkdir -p ~/$DIR/tests"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests;repo init -u $repo -g all -m $buildXML"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests; repo sync --jobs=20"
-    ssh -p $port couchbase@localhost "cd ~/$DIR/tests/ns_server; ./cluster_run -n $nodeCount &>/dev/null &; ./cluster_connect -n $nodeCount"
+    ssh -p $port couchbase@localhost "killall -9 -u couchbase"
+    ssh -p $port couchbase@localhost "cd ~/$DIR/tests; make -j$par; cd ns_server; make dataclean"
+    ssh -p $port couchbase@localhost "cd ~/$DIR/tests/ns_server; ./cluster_run -n $nodeCount &>/dev/null & sleep 60 ./cluster_connect -n $nodeCount"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests/testrunner; ./testrunner -i $iniFile -c $confFile"
     ssh -p $port couchbase@localhost "cd ~/DIR/tests/; ./install/bin/cbcollect_info -v $DIR.zip"
 

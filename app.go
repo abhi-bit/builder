@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -91,7 +92,7 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 		repo = repos[0]
 	}
 	xmlFile := params["xmlfile"][0]
-	job := newJob(buildId, os, repo, xmlFile)
+	job := newBuildJob(buildId, os, repo, xmlFile)
 
 	now, done := time.Now(), make(chan bool)
 	seconds := 0
@@ -126,6 +127,69 @@ func createBuild(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "  %s\n", job.cbDebugServer)
 }
 
+func createTest(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	buildId := getConfig("build_id").(int) + 1
+	setConfig("build_id", buildId)
+
+	// Gather cluster node count, test-case ini and conf files
+	params := r.URL.Query()
+	repo := "git://github.com/couchbase/manifest"
+	if repos, ok := params["repo"]; ok && len(repos) > 0 {
+		repo = repos[0]
+	}
+	xmlFile := params["xmlfile"][0]
+	nodeCount, err := strconv.Atoi(params["nodeCount"][0])
+	if err != nil {
+		fmt.Fprintf(w, "Invalid nodeCount passed\n")
+		return
+	}
+	iniFile := params["ini"][0]
+	confFile := params["conf"][0]
+
+	job := newTestRunnerJob(buildId, nodeCount, repo,
+		xmlFile, iniFile, confFile)
+
+	now, done := time.Now(), make(chan bool)
+	seconds := 0
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			time.Sleep(time.Second * 1)
+			seconds++
+			select {
+			case <-done:
+				fmt.Fprintf(w, "Done\n")
+				fmt.Fprintf(w, "Time elapsed: %s\n", time.Since(now))
+				flusher.Flush()
+				close(done)
+				return
+			default:
+				fmt.Fprintf(w, ".")
+				if (seconds % 60) == 0 {
+					fmt.Fprintf(w, "\n")
+				}
+				flusher.Flush()
+			}
+		}
+	}()
+	job = job.run(w)
+	done <- true
+	wg.Wait()
+
+	fmt.Fprintf(w, "S3 link for cbcollect_info archive:\n")
+	fmt.Fprintf(w, " %s\n", job.cbCollectLog)
+}
+
 func argParse() {
 	flag.StringVar(&options.basedir, "dir", "/var/tmp",
 		"directory path to save builder files (configuration, log)")
@@ -146,7 +210,8 @@ func main() {
 	argParse()
 
 	loadConfig(filepath.Join(options.basedir, "builder.json"))
-	go runJobs()
+	go runBuildJobs()
+	go runTestRunnerJobs()
 
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", welcomeHandler)
@@ -155,6 +220,7 @@ func main() {
 	router.HandleFunc("/config", getConfiguration)
 	router.HandleFunc("/listjobs", listJobs)
 	router.HandleFunc("/build/{OS}", createBuild)
+	router.HandleFunc("/testrunner", createTest)
 	fmt.Println("Starting web service on 8080")
 	if err := http.ListenAndServe(":8080", router); err != nil {
 		log.Fatal(err)

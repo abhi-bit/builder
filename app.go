@@ -187,7 +187,7 @@ func createTest(w http.ResponseWriter, r *http.Request) {
 	wg.Wait()
 
 	fmt.Fprintf(w, "S3 link for cbcollect_info archive:\n")
-	fmt.Fprintf(w, " %\n", job.cbCollectLog)
+	fmt.Fprintf(w, " %s\n", job.cbCollectLog)
 }
 
 func argParse() {

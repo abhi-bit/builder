@@ -72,8 +72,8 @@ func setConfig(key string, value interface{}) interface{} {
 		old = config.TotalBuilds
 		config.TotalBuilds = value.(int)
 	case "total_tests":
-		old = config.TotalBuilds
-		config.TotalBuilds = value.(int)
+		old = config.TotalTests
+		config.TotalTests = value.(int)
 	case "completed_builds":
 		old = config.CompletedBuilds
 		config.CompletedBuilds = value.(int)

@@ -5,10 +5,10 @@ OS=$2
 repo=$3 # eg, git://github.com/couchbase/manifest
 buildXML=$4
 buildID=$5
+DIR=$6
 
 createbuild()
 {
-    DIR=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
     # list of commands to create build
     ssh -p $port couchbase@localhost "mkdir -p ~/$DIR/builder"
     ssh -p $port couchbase@localhost "cd ~/$DIR/builder; repo init -u $repo -g all -m $buildXML"

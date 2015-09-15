@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,7 +32,7 @@ type Job struct {
 	respch        chan Job
 	cbServer      string
 	cbDebugServer string
-	cbCollectLogs []string
+	cbCollectLog  string
 }
 
 func newBuildJob(buildId int, os, repo, buildXML string) Job {
@@ -135,14 +137,15 @@ func runBuildJobs() {
 		log.Printf("runjob: %v\n", job.String())
 		setCurrentJob(&job)
 		buildId, os := job.BuildId, job.Os
-		repo, xmlFile := job.Repo, job.BuildXML
+		repo, xmlFile, uuid := job.Repo, job.BuildXML, jobUUID()
 		cmd := exec.Command(
 			"./createBuild.sh",
 			osBuildMapping[os],
 			os,
 			repo,
 			xmlFile,
-			strconv.Itoa(buildId))
+			strconv.Itoa(buildId),
+			uuid)
 
 		cmdOutput := &bytes.Buffer{}
 		cmd.Stdout = cmdOutput
@@ -179,7 +182,7 @@ func runTestRunnerJobs() {
 		log.Printf("runjob: %v\n", job.String())
 		setCurrentJob(&job)
 		repo, xmlFile, nodeCount := job.Repo, job.BuildXML, job.NodeCount
-		iniFile, confFile := job.IniFile, job.ConfFile
+		iniFile, confFile, uuid := job.IniFile, job.ConfFile, jobUUID()
 
 		cmd := exec.Command(
 			"./runTests.sh",
@@ -188,7 +191,8 @@ func runTestRunnerJobs() {
 			xmlFile,
 			strconv.Itoa(nodeCount),
 			iniFile,
-			confFile)
+			confFile,
+			uuid)
 
 		cmdOutput := &bytes.Buffer{}
 		cmd.Stdout = cmdOutput
@@ -199,10 +203,23 @@ func runTestRunnerJobs() {
 		}
 		cmd.Wait()
 
+		job.cbCollectLog = `https://s3.amazonaws.com/` +
+			`customers.couchbase.com/couchbase/` + uuid + `.zip`
+
 		job.respch <- job
 		delJob(job)
 		setCurrentJob(nil)
 		tests := getConfig("completed_tests").(int)
 		setConfig("completed_tests", tests+1)
+
 	}
+}
+
+func jobUUID() string {
+	b := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		log.Printf("Failed to generate job uuid: %v\n", err)
+		return ""
+	}
+	return hex.EncodeToString(b)
 }

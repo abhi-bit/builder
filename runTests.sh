@@ -7,11 +7,10 @@ buildXML=$3
 nodeCount=$4
 iniFile=$5
 confFile=$6
+DIR=$7
 
 fireTests()
 {
-    DIR=$(cat /dev/random | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-
     ssh -p $port couchbase@localhost "mkdir -p ~/$DIR/tests"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests;repo init -u $repo -g all -m $buildXML"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests; repo sync --jobs=20"

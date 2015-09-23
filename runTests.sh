@@ -14,7 +14,7 @@ fireTests()
     ssh -p $port couchbase@localhost "mkdir -p ~/$DIR/tests"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests;repo init -u $repo -g all -m $buildXML"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests; repo sync --jobs=20"
-    ssh -p $port couchbase@localhost "cd ~/$DIR/tests/ns_server; ./cluster_run -n $nodeCount &>/dev/null &; ./cluster_connect -n $nodeCount"
+    ssh -p $port couchbase@localhost "cd ~/$DIR/tests/ns_server; ./cluster_run -n $nodeCount &>/dev/null &; sleep 60; ./cluster_connect -n $nodeCount"
     ssh -p $port couchbase@localhost "cd ~/$DIR/tests/testrunner; ./testrunner -i $iniFile -c $confFile"
     ssh -p $port couchbase@localhost "cd ~/DIR/tests/; ./install/bin/cbcollect_info -v $DIR.zip"
 

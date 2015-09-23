@@ -16,7 +16,7 @@ createbuild()
     ssh -p $port couchbase@localhost "cd ~/$DIR/builder; cbbuild/scripts/jenkins/couchbase_server/server-linux-build.sh $OS toy-10$buildID.0.0 enterprise 1"
 
     # upload files to S3
-    ssh -p $port couchbase@localhost "bash ~/upload.sh"
+    ssh -p $port couchbase@localhost "bash ~/upload.sh $DIR"
     ssh -p $port couchbase@localhost "cd; rm -rf ~/$DIR; rm -rf rpmbuild"
 }
 

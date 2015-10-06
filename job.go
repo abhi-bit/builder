@@ -162,12 +162,22 @@ func runBuildJobs() {
 		}
 
 		// S3 download links:
-		job.cbServer = `http://customers.couchbase.com.s3.amazonaws.com` +
-			`/couchbase/couchbase-server-1.7~toy-10` +
-			strconv.Itoa(buildId) + `.0.0.x86_64.` + ext
-		job.cbDebugServer = `http://customers.couchbase.com.s3.amazonaws.com` +
-			`/couchbase/couchbase-server-debug-1.7~toy-10` +
-			strconv.Itoa(buildId) + `.0.0.x86_64.` + ext
+		if ext == "rpm" {
+			job.cbServer = `http://customers.couchbase.com.s3.amazonaws.com` +
+				`/couchbase/couchbase-server-1.7~toy-10` +
+				strconv.Itoa(buildId) + `.0.0.x86_64.rpm`
+			job.cbDebugServer = `http://customers.couchbase.com.s3.amazonaws.com` +
+				`/couchbase/couchbase-server-debug-1.7~toy-10` +
+				strconv.Itoa(buildId) + `.0.0.x86_64.rpm`
+		} else {
+			job.cbServer = `http://customers.couchbase.com.s3.amazonaws.com` +
+				`/couchbase/couchbase-server-enterprise_toy-10` +
+				strconv.Itoa(buildId) + `.0.0-1-debian7_amd64.deb`
+			job.cbDebugServer = `http://customers.couchbase.com.s3.amazonaws.com` +
+				`/couchbase/couchbase-server-enterprise-dbg_toy-10` +
+				strconv.Itoa(buildId) + `.0.0-1-debian7_amd64.deb`
+
+		}
 		job.respch <- job
 		delJob(job)
 		setCurrentJob(nil)
